@@ -3,7 +3,7 @@ const http = require('http');
 
 const PORT = process.env.PORT || 8080;
 
-// Avvia server HTTP richiesto da Render
+// Server HTTP base richiesto da Render
 const server = http.createServer((req, res) => {
   res.writeHead(200);
   res.end('Signaling server attivo');
@@ -24,9 +24,25 @@ wss.on('connection', (ws) => {
   console.log('Client connesso, totale:', clients.length);
 
   ws.on('message', (message) => {
-    const otherClient = clients.find(client => client !== ws);
-    if (otherClient && otherClient.readyState === WebSocket.OPEN) {
-      otherClient.send(message);
+    // Assicuriamoci che il messaggio sia una stringa JSON
+    let parsed;
+    try {
+      // message potrebbe essere buffer, lo converto in stringa se serve
+      const msgString = (typeof message === 'string') ? message : message.toString();
+      parsed = JSON.parse(msgString);
+    } catch (e) {
+      console.warn('Messaggio non JSON ricevuto, ignoro:', message);
+      return;
+    }
+
+    // Inoltra il messaggio (serializzato di nuovo) solo all'altro client
+    const otherClient = clients.find(client => client !== ws && client.readyState === WebSocket.OPEN);
+    if (otherClient) {
+      try {
+        otherClient.send(JSON.stringify(parsed));
+      } catch (e) {
+        console.error('Errore invio messaggio all\'altro client:', e);
+      }
     }
   });
 
